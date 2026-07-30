@@ -3,7 +3,7 @@ import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises
 import { dirname, join, resolve } from "node:path";
 
 export const WORKSPACE_DIR = ".pi-job-search";
-const STATE_DIRECTORIES = ["profile", "search", "applications", "reports", "integrations"];
+const STATE_DIRECTORIES = ["profile", "search", "applications", "reports", "integrations", "documents"];
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
