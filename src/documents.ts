@@ -70,6 +70,7 @@ export async function compileLatex(texPath: string, options: CompileOptions): Pr
 }
 
 export interface DocumentVerificationInput {
+  cwd?: string;
   pdfPath: string;
   expectedPages: number;
   requiredText: string[];
@@ -87,6 +88,7 @@ export interface DocumentVerificationResult {
 }
 
 export async function verifyDocument(input: DocumentVerificationInput, runner: CommandRunner = defaultRunner): Promise<DocumentVerificationResult> {
+  if (input.cwd) insideState(input.cwd, input.pdfPath);
   const info = await runner("pdfinfo", [input.pdfPath]);
   const pageMatch = info.stdout.match(/Pages:\s*(\d+)/i);
   const pageCount = pageMatch ? Number(pageMatch[1]) : null;
