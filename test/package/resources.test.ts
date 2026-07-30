@@ -6,6 +6,7 @@ const root = new URL("../..", import.meta.url);
 const prompts = [
   "setup",
   "scrape",
+  "import",
   "rank",
   "apply",
   "interview",
@@ -48,13 +49,14 @@ test("extension registers at least one deterministic tool", async () => {
   const { default: register } = await import("../../extensions/index.js");
   const tools: unknown[] = [];
   register({ registerTool: (tool: unknown) => tools.push(tool) });
-  assert.ok(tools.length >= 19);
+  assert.ok(tools.length >= 20);
   assert.deepEqual(tools.map((tool) => (tool as { name: string }).name), [
     "job_search_capabilities",
     "job_search_initialize_workspace",
     "job_search_profile_consistency",
     "job_search_profile_reset",
     "job_search_scrape",
+    "job_search_import_postings",
     "job_search_portal_health",
     "job_search_rank",
     "job_search_apply",

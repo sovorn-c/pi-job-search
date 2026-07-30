@@ -1,12 +1,18 @@
 import { load } from "cheerio";
 import { XMLParser } from "fast-xml-parser";
 
-export type PortalName = "linkedin" | "freehire" | "jobindex" | "jobnet" | "jobbank" | "jobdanmark";
+export type PortalName = "himalayas" | "weworkremotely" | "remoteok" | "linkedin" | "freehire" | "jobindex" | "jobnet" | "jobbank" | "jobdanmark";
 export type PortalErrorCode = "http" | "timeout" | "parse" | "rate_limit" | "source" | "network";
 
 export interface SearchQuery {
   query: string;
   location?: string;
+  country?: string;
+  timezone?: string;
+  seniority?: string;
+  employmentType?: string;
+  category?: string;
+  remoteOnly?: boolean;
   limit?: number;
 }
 
@@ -34,6 +40,13 @@ export interface NormalizedJob {
   url: string;
   description: string | null;
   employmentType: string | null;
+  remoteType?: "remote" | "hybrid" | "onsite" | string | null;
+  countryRestrictions?: string[];
+  timezoneRestrictions?: string[];
+  salary?: { min?: number; max?: number; currency?: string; period?: string };
+  applicationUrl?: string;
+  tags?: string[];
+  attributionUrl?: string;
 }
 
 export interface PortalSearchResult {
@@ -133,6 +146,47 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function xmlText(value: unknown): string | null {
+  if (typeof value === "string") return text(value);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return text(record["#text"]) ?? text(record["_text"]);
+  }
+  return null;
+}
+
+function plainText(value: unknown): string | null {
+  const source = text(value);
+  if (!source) return null;
+  const $ = load(`<body>${source}</body>`);
+  $("script, style, noscript").remove();
+  return $("body").text().replace(/\\s+/g, " ").trim() || null;
+}
+
+function dateValue(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return new Date(value).toISOString();
+  return text(value);
+}
+
+function normalized(value: string | null | undefined): string {
+  return (value ?? "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function matchesSourceQuery(job: NormalizedJob, query: SearchQuery): boolean {
+  const haystack = normalized([job.title, job.company, job.description, ...(job.tags ?? [])].filter(Boolean).join(" "));
+  const terms = normalized(query.query).split(" ").filter(Boolean);
+  if (terms.some((term) => !haystack.includes(term))) return false;
+  const requestedLocation = normalized(query.location ?? query.country);
+  const availableLocation = normalized(`${job.location ?? ""} ${(job.countryRestrictions ?? []).join(" ")}`);
+  if (requestedLocation && availableLocation && !availableLocation.includes(requestedLocation) && !/(remote|worldwide|anywhere)/.test(availableLocation)) return false;
+  if (query.category && !(job.tags ?? []).some((tag) => normalized(tag).includes(normalized(query.category)))) return false;
+  return true;
+}
+
+function filterSourceJobs(jobs: NormalizedJob[], query: SearchQuery): NormalizedJob[] {
+  return jobs.filter((job) => matchesSourceQuery(job, query)).slice(0, query.limit ?? jobs.length);
+}
+
 function nested(record: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) if (record[key] !== undefined && record[key] !== null) return record[key];
   return null;
@@ -150,6 +204,13 @@ export function normalizeJob(input: Partial<NormalizedJob> & Record<string, unkn
     url,
     description: text(input.description),
     employmentType: text(input.employmentType),
+    ...(input.remoteType === null || typeof input.remoteType === "string" ? { remoteType: input.remoteType as NormalizedJob["remoteType"] } : {}),
+    ...(Array.isArray(input.countryRestrictions) ? { countryRestrictions: input.countryRestrictions.filter((value): value is string => typeof value === "string") } : {}),
+    ...(Array.isArray(input.timezoneRestrictions) ? { timezoneRestrictions: input.timezoneRestrictions.filter((value): value is string => typeof value === "string") } : {}),
+    ...(input.salary && typeof input.salary === "object" ? { salary: input.salary as NormalizedJob["salary"] } : {}),
+    ...(typeof input.applicationUrl === "string" ? { applicationUrl: input.applicationUrl } : {}),
+    ...(Array.isArray(input.tags) ? { tags: input.tags.filter((value): value is string => typeof value === "string") } : {}),
+    ...(typeof input.attributionUrl === "string" ? { attributionUrl: input.attributionUrl } : {}),
   };
 }
 
@@ -249,7 +310,7 @@ export function parseJobdanmarkJson(payload: unknown): NormalizedJob[] {
   return parseRecords(payload).map((record) => fromRecord("jobdanmark", record, "https://jobdanmark.dk"));
 }
 
-export function parseJobPostingJsonLd(html: string, url: string, source: PortalName = "jobbank"): NormalizedJob {
+export function parseJobPostingJsonLd(html: string, url: string, source: string = "jobbank"): NormalizedJob {
   const $ = load(html);
   const script = $("script[type='application/ld+json']").first().text();
   try {
@@ -301,6 +362,121 @@ function jsonAdapter(
       const response = await http(url, init, signal);
       const jobs = parse(JSON.parse(response.body));
       return jobs[0] ?? null;
+    },
+  };
+}
+
+function arrayOfRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")) : [];
+}
+
+function countryValues(value: unknown): string[] {
+  return arrayOfRecords(value).map((item) => text(item.alpha2) ?? text(item.name)).filter((item): item is string => Boolean(item));
+}
+
+export function parseHimalayasJson(payload: unknown): NormalizedJob[] {
+  const records = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? arrayOfRecords((payload as Record<string, unknown>).jobs)
+    : arrayOfRecords(payload);
+  return records.map((record) => {
+    const countries = countryValues(record.locationRestrictions);
+    const timezones = Array.isArray(record.timezoneRestrictions) ? record.timezoneRestrictions.filter((value): value is string => typeof value === "string") : [];
+    const applicationUrl = text(record.applicationLink);
+    const id = text(record.guid) ?? applicationUrl ?? "";
+    return normalizeJob({
+      source: "himalayas", id, title: text(record.title), company: text(record.companyName), location: countries.join(", ") || "Worldwide",
+      datePosted: dateValue(record.pubDate), url: applicationUrl ?? `https://himalayas.app/jobs/${id}`, description: plainText(record.description ?? record.excerpt),
+      employmentType: text(record.employmentType), remoteType: "remote", countryRestrictions: countries, timezoneRestrictions: timezones,
+      salary: typeof record.minSalary === "number" || typeof record.maxSalary === "number" ? { min: record.minSalary as number, max: record.maxSalary as number, currency: text(record.currency) ?? undefined, period: text(record.salaryPeriod) ?? undefined } : undefined,
+      applicationUrl: applicationUrl ?? undefined, tags: [...(Array.isArray(record.categories) ? record.categories : []), ...(Array.isArray(record.parentCategories) ? record.parentCategories : [])].filter((value): value is string => typeof value === "string"),
+      attributionUrl: "https://himalayas.app",
+    });
+  });
+}
+
+export function createHimalayasAdapter(http: HttpClient): PortalAdapter {
+  return {
+    name: "himalayas",
+    async search(query, signal) {
+      const url = new URL("https://himalayas.app/jobs/api/search");
+      if (query.query) url.searchParams.set("q", query.query);
+      if (query.country) url.searchParams.set("country", query.country);
+      if (query.timezone) url.searchParams.set("timezone", query.timezone);
+      if (query.seniority) url.searchParams.set("seniority", query.seniority);
+      if (query.employmentType) url.searchParams.set("employment_type", query.employmentType);
+      if (query.remoteOnly) url.searchParams.set("worldwide", "true");
+      url.searchParams.set("sort", "recent");
+      const response = await http(url.href, undefined, signal);
+      return { jobs: filterSourceJobs(parseHimalayasJson(JSON.parse(response.body)), query), warnings: ["Himalayas data is cached and refreshed by the provider; source attribution is required."] };
+    },
+    async detail(idOrUrl, signal) {
+      const url = safeSourceUrl(idOrUrl.startsWith("http") ? idOrUrl : `https://himalayas.app/jobs/${idOrUrl}`, ["himalayas.app"]);
+      const response = await http(url, undefined, signal);
+      return parseJobPostingJsonLd(response.body, url, "himalayas");
+    },
+  };
+}
+
+export function parseWeWorkRemotelyRss(xml: string): NormalizedJob[] {
+  const parsed = new XMLParser({ ignoreAttributes: false }).parse(xml);
+  const channel = parsed?.rss?.channel;
+  const items = Array.isArray(channel?.item) ? channel.item : channel?.item ? [channel.item] : [];
+  return items.map((record: Record<string, unknown>) => {
+    const url = xmlText(record.link) ?? "";
+    const description = plainText(xmlText(record.description));
+    const company = xmlText(record.company) ?? xmlText(record.author) ?? xmlText(record["dc:creator"]);
+    return normalizeJob({ source: "weworkremotely", id: xmlText(record.guid) ?? url, title: xmlText(record.title), company, location: xmlText(record.location) ?? "Remote", datePosted: xmlText(record.pubDate), url, description, employmentType: xmlText(record.employmentType), remoteType: "remote", tags: [xmlText(record.category)].filter((value): value is string => Boolean(value)), attributionUrl: "https://weworkremotely.com" });
+  });
+}
+
+const WWR_CATEGORIES: Record<string, string> = {
+  programming: "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+  "full stack": "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
+  "front end": "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
+  "back end": "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss",
+  design: "https://weworkremotely.com/categories/remote-design-jobs.rss",
+  devops: "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss",
+  product: "https://weworkremotely.com/categories/remote-product-jobs.rss",
+};
+
+export function createWeWorkRemotelyAdapter(http: HttpClient): PortalAdapter {
+  return {
+    name: "weworkremotely",
+    async search(query, signal) {
+      const category = query.category ? WWR_CATEGORIES[normalized(query.category)] : undefined;
+      const response = await http(category ?? "https://weworkremotely.com/remote-jobs.rss", undefined, signal);
+      const jobs = parseWeWorkRemotelyRss(response.body).map((job) => category ? { ...job, tags: [...(job.tags ?? []), query.category as string] } : job);
+      return { jobs: filterSourceJobs(jobs, query), warnings: ["We Work Remotely provides category RSS feeds; keyword filtering is local. Attribution is required."] };
+    },
+    async detail(idOrUrl, signal) {
+      const url = safeSourceUrl(idOrUrl.startsWith("http") ? idOrUrl : `https://weworkremotely.com/remote-jobs/${idOrUrl}`, ["weworkremotely.com"]);
+      const response = await http(url, undefined, signal);
+      return parseJobPostingJsonLd(response.body, url, "weworkremotely");
+    },
+  };
+}
+
+export function parseRemoteOkJson(payload: unknown): NormalizedJob[] {
+  return arrayOfRecords(payload).filter((record) => Boolean(record.id || record.slug || record.position)).map((record) => {
+    const url = text(record.url) ?? text(record.apply_url) ?? "";
+    const min = typeof record.salary_min === "number" && record.salary_min > 0 ? record.salary_min : undefined;
+    const max = typeof record.salary_max === "number" && record.salary_max > 0 ? record.salary_max : undefined;
+    const tags = Array.isArray(record.tags) ? record.tags.filter((value): value is string => typeof value === "string") : [];
+    return normalizeJob({ source: "remoteok", id: text(record.id) ?? text(record.slug) ?? url, title: text(record.position), company: text(record.company), location: text(record.location), datePosted: text(record.date), url, description: plainText(record.description), employmentType: "Full-time", remoteType: "remote", salary: min !== undefined || max !== undefined ? { min, max, currency: "USD" } : undefined, applicationUrl: text(record.apply_url) ?? url, tags, attributionUrl: "https://remoteok.com" });
+  });
+}
+
+export function createRemoteOkAdapter(http: HttpClient): PortalAdapter {
+  return {
+    name: "remoteok",
+    async search(query, signal) {
+      const response = await http("https://remoteok.com/api", undefined, signal);
+      return { jobs: filterSourceJobs(parseRemoteOkJson(JSON.parse(response.body)), query), warnings: ["Remote OK requires follow-link attribution; job descriptions are untrusted content."] };
+    },
+    async detail(idOrUrl, signal) {
+      const url = safeSourceUrl(idOrUrl.startsWith("http") ? idOrUrl : `https://remoteok.com/remote-jobs/${idOrUrl}`, ["remoteok.com"]);
+      const response = await http(url, undefined, signal);
+      return parseJobPostingJsonLd(response.body, url, "remoteok");
     },
   };
 }
@@ -379,11 +555,8 @@ export function createJobdanmarkAdapter(http: HttpClient): PortalAdapter {
 
 export function createPortalRegistry(http: HttpClient): Map<PortalName, PortalAdapter> {
   return new Map([
-    ["linkedin", createLinkedInAdapter(http)],
-    ["freehire", createFreehireAdapter(http)],
-    ["jobindex", createJobindexAdapter(http)],
-    ["jobnet", createJobnetAdapter(http)],
-    ["jobbank", createJobbankAdapter(http)],
-    ["jobdanmark", createJobdanmarkAdapter(http)],
+    ["himalayas", createHimalayasAdapter(http)],
+    ["weworkremotely", createWeWorkRemotelyAdapter(http)],
+    ["remoteok", createRemoteOkAdapter(http)],
   ]);
 }

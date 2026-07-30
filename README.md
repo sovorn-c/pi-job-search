@@ -18,9 +18,10 @@ Run `npm run verify:package` to inspect the published resource inventory.
 ## Commands
 
 - `/setup`, `/reset`: manage the local candidate profile.
-- `/scrape`, `/rank`: collect and score public jobs.
+- `/scrape`, `/rank`: discover and score jobs from Himalayas, We Work Remotely, and Remote OK.
 - `/gmail-auth`: authorize optional read-only Gmail access once using a Google Desktop OAuth client.
 - `/apply`: create draft-only, grounded application documents.
+- `/import`: import pasted descriptions, `.txt`/`.md` files, or public URLs with complete/partial/failed extraction reporting.
 - `/outcome`, `/followup`, `/interview`: track outcomes and prepare responses; no messages are sent.
 - `/expand`, `/upskill`, `/html-report`: improve the profile, identify gaps, and render an offline report.
 - `/gmail-sync`: reconcile incoming application signals from Gmail after explicit approval. Gmail access is read-only; it never sends, deletes, labels, or archives mail.
@@ -43,7 +44,7 @@ The flow uses PKCE and a loopback callback. Refresh tokens are stored outside th
 
 Profile facts, documents, tracker data, Gmail state, and generated adapters stay in the ignored local workspace. Gmail is optional. Set `GMAIL_CLIENT_ID` (and optionally `GMAIL_CLIENT_SECRET`) once, run `/gmail-auth`, and the browser PKCE flow stores a refresh token in the OS keychain when available. Existing `GMAIL_TOKEN`/`GMAIL_ACCESS_TOKEN` environment tokens remain supported. Gmail offers are recorded as `offer`, not `hired`, and ambiguous matches remain proposals.
 
-Portal adapters use public endpoints only. Auth-walled portals are refused. Robots and terms restrictions are surfaced as personal-use warnings. Live smoke checks are opt-in, low-volume, and never bypass controls.
+Automated discovery uses only Himalayas, We Work Remotely, and Remote OK public APIs/feeds. URL imports make one normal public request and report partial extraction or access failures; they never use login automation, CAPTCHA bypass, proxies, or fingerprint evasion. Source attribution and provider restrictions are surfaced to the user. Live smoke checks are opt-in and low-volume.
 
 Custom templates must pass a tokenized, allowlisted dummy compile before activation. Generated portal adapters require a fixture contract and explicit manual smoke evidence. No package lifecycle scripts run on install.
 
