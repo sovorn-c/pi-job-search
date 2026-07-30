@@ -16,7 +16,8 @@
     "cli": "tsx src/cli.ts",
     "verify:package": "tsx scripts/verify-package.mjs",
     "verify:setup": "tsx scripts/verify-setup.mjs",
-    "verify:scrape": "tsx scripts/verify-scrape.mjs"
+    "verify:scrape": "tsx scripts/verify-scrape.mjs",
+    "verify:apply": "tsx scripts/verify-apply.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

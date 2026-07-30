@@ -48,7 +48,7 @@ test("extension registers at least one deterministic tool", async () => {
   const { default: register } = await import("../../extensions/index.js");
   const tools: unknown[] = [];
   register({ registerTool: (tool: unknown) => tools.push(tool) });
-  assert.ok(tools.length >= 6);
+  assert.ok(tools.length >= 9);
   assert.deepEqual(tools.map((tool) => (tool as { name: string }).name), [
     "job_search_capabilities",
     "job_search_initialize_workspace",
@@ -56,5 +56,8 @@ test("extension registers at least one deterministic tool", async () => {
     "job_search_profile_reset",
     "job_search_scrape",
     "job_search_portal_health",
+    "job_search_rank",
+    "job_search_apply",
+    "job_search_document_verify",
   ]);
 });
