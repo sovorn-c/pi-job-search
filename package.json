@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "tsx --test test/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx src/cli.ts"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
