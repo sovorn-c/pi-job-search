@@ -18,7 +18,7 @@ export interface TrackerRow {
   [key: string]: string | undefined;
 }
 
-const COLUMNS = ["applicationKey", "company", "role", "url", "status", "appliedAt", "notes", "cvFile", "coverLetterFile"];
+const COLUMNS = ["applicationKey", "company", "role", "url", "status", "appliedAt", "notes", "cvFile", "coverLetterFile", "date", "sector", "channel", "source"];
 const TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   discovered: ["drafted", "applied", "withdrawn"], drafted: ["applied", "withdrawn"], applied: ["acknowledged", "interview", "offer", "rejected", "no-response", "withdrawn"],
   acknowledged: ["interview", "offer", "rejected", "no-response", "withdrawn"], interview: ["offer", "rejected", "no-response", "withdrawn"], offer: ["hired", "offer-declined", "withdrawn"],
