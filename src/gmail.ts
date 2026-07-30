@@ -35,7 +35,7 @@ export interface GmailClient {
 
 export interface GmailCredentialStatus {
   configured: boolean;
-  source: "GMAIL_TOKEN" | "GMAIL_ACCESS_TOKEN" | null;
+  source: "GMAIL_TOKEN" | "GMAIL_ACCESS_TOKEN" | "oauth-refresh" | null;
 }
 
 export class GmailApiError extends Error {
