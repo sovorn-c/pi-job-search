@@ -7,3 +7,4 @@ allure-report/
 .pi-job-search/
 .pi/
 *.tsbuildinfo
+specs/
