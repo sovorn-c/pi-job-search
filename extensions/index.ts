@@ -10,6 +10,8 @@ import { buildInterviewPack, saveInterviewPack, type InterviewStage } from "../s
 import { applyExpansion, proposeExpansion, type ExpansionSignal } from "../src/expand.js";
 import { aggregateUpskill, analyzeSingleRole, type RoleGapInput } from "../src/upskill.js";
 import { generateHtmlReport } from "../src/report.js";
+import { createGmailClient } from "../src/gmail.js";
+import { syncGmail } from "../src/gmail-sync.js";
 import { verifyDocument } from "../src/documents.js";
 import { rankJobs, mergeRankState, type RankInput, type RankState } from "../src/rank.js";
 import { createHttpClient, createPortalRegistry, type PortalName } from "../src/portals.js";
@@ -33,6 +35,7 @@ const outcomeStatus = Type.Union([Type.Literal("acknowledged"), Type.Literal("in
 const interviewStage = Type.Union([Type.Literal("screening"), Type.Literal("technical"), Type.Literal("behavioral"), Type.Literal("onsite"), Type.Literal("final")]);
 const expansionSignal = Type.Object({ id: Type.String(), section: Type.Union([Type.Literal("candidate"), Type.Literal("behavioral"), Type.Literal("writing"), Type.Literal("search")]), key: Type.String(), value: Type.Unknown(), source: Type.String(), evidence: Type.String(), confidence: Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")]), status: Type.Union([Type.Literal("direct"), Type.Literal("inferred")]) });
 const roleGap = Type.Object({ applicationKey: Type.String(), role: Type.String(), importance: Type.Optional(Type.Number()), gaps: Type.Array(Type.Object({ text: Type.String(), priority: Type.Union([Type.Literal(1), Type.Literal(3)]) })) });
+const gmailConfirmation = Type.Optional(Type.Union([Type.Literal("APPROVE"), Type.Literal("REJECT")]));
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], details: {} };
@@ -234,6 +237,17 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     parameters: Type.Object({ outputPath: Type.Optional(Type.String()) }),
     async execute(_toolCallId, params: { outputPath?: string }) {
       return textResult(await generateHtmlReport(process.cwd(), params.outputPath));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_gmail_sync",
+    label: "Sync Gmail Application Signals",
+    description: "Read Gmail messages, propose application status signals with evidence, and apply only after explicit batch approval. Never modifies Gmail.",
+    parameters: Type.Object({ query: Type.Optional(Type.String()), company: Type.Optional(Type.String()), confirmation: gmailConfirmation }),
+    async execute(_toolCallId, params: { query?: string; company?: string; confirmation?: "APPROVE" | "REJECT" }) {
+      const { client } = createGmailClient(process.env);
+      return textResult(await syncGmail(process.cwd(), client, params));
     },
   });
 }
