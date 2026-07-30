@@ -3,10 +3,11 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
 const root = new URL("..", import.meta.url);
-const rootPath = decodeURIComponent(root.pathname);
+const rootPath = fileURLToPath(root);
 const expectedCommands = [
   "setup", "scrape", "rank", "apply", "interview", "outcome", "expand",
   "upskill", "gmail-sync", "notion-sync", "html-report", "add-template",
