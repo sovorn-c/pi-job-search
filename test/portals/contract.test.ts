@@ -16,10 +16,10 @@ test("normalized jobs keep explicit nulls and source attribution", () => {
   });
 });
 
-test("registry exposes all six public adapters behind one contract", () => {
+test("registry exposes the three global adapters behind one contract", () => {
   const http: HttpClient = async () => ({ status: 200, headers: {}, body: "" });
   const registry = createPortalRegistry(http);
-  assert.deepEqual([...registry.keys()], ["linkedin", "freehire", "jobindex", "jobnet", "jobbank", "jobdanmark"]);
+  assert.deepEqual([...registry.keys()], ["himalayas", "weworkremotely", "remoteok"]);
   for (const adapter of registry.values()) {
     assert.equal(typeof adapter.search, "function");
     assert.equal(typeof adapter.detail, "function");
@@ -28,6 +28,6 @@ test("registry exposes all six public adapters behind one contract", () => {
 
 test("source allowlists reject posting-body URLs", () => {
   const http: HttpClient = async () => ({ status: 200, headers: {}, body: "" });
-  const adapter = createPortalRegistry(http).get("linkedin")!;
+  const adapter = createPortalRegistry(http).get("himalayas")!;
   assert.rejects(() => adapter.detail("https://evil.example/job/1"), /source allowlist/);
 });

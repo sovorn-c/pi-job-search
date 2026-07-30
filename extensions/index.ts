@@ -19,15 +19,22 @@ import { scaffoldPortalAdapter } from "../src/portal-scaffold.js";
 import { verifyDocument } from "../src/documents.js";
 import { rankJobs, mergeRankState, type RankInput, type RankState } from "../src/rank.js";
 import { createHttpClient, createPortalRegistry, type PortalName } from "../src/portals.js";
+import { importPostings } from "../src/import.js";
 import { assessPortalHealth, mergeSeenJobs, orchestrateScrape, readSeenState, writeSeenState } from "../src/scrape.js";
 import { initializeWorkspace, writeJsonAtomic, WORKSPACE_DIR } from "../src/workspace.js";
 
 const resetMode = Type.Union([Type.Literal("profile"), Type.Literal("documents"), Type.Literal("all")]);
 const portalNames = Type.Optional(Type.Array(Type.String()));
+const searchQuery = Type.Object({
+  query: Type.String(), location: Type.Optional(Type.String()), country: Type.Optional(Type.String()), timezone: Type.Optional(Type.String()),
+  seniority: Type.Optional(Type.String()), employmentType: Type.Optional(Type.String()), category: Type.Optional(Type.String()), remoteOnly: Type.Optional(Type.Boolean()), limit: Type.Optional(Type.Number()),
+});
 const rankInput = Type.Object({
   source: Type.String(), id: Type.String(), title: Type.Union([Type.String(), Type.Null()]), company: Type.Union([Type.String(), Type.Null()]),
   location: Type.Union([Type.String(), Type.Null()]), datePosted: Type.Union([Type.String(), Type.Null()]), url: Type.String(),
   description: Type.Union([Type.String(), Type.Null()]), employmentType: Type.Union([Type.String(), Type.Null()]),
+  remoteType: Type.Optional(Type.Union([Type.String(), Type.Null()])), countryRestrictions: Type.Optional(Type.Array(Type.String())), timezoneRestrictions: Type.Optional(Type.Array(Type.String())),
+  salary: Type.Optional(Type.Unknown()), applicationUrl: Type.Optional(Type.String()), tags: Type.Optional(Type.Array(Type.String())), attributionUrl: Type.Optional(Type.String()),
   scores: Type.Object({ technical: Type.Number(), experience: Type.Number(), behavioral: Type.Number(), career: Type.Number() }),
   workRights: Type.Union([Type.Literal("PASS"), Type.Literal("FAIL"), Type.Literal("UNKNOWN")]),
   locationGate: Type.Union([Type.Literal("PASS"), Type.Literal("FAIL"), Type.Literal("FLAG"), Type.Literal("UNKNOWN")]),
@@ -94,14 +101,25 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     name: "job_search_scrape",
     label: "Scrape Job Portals",
     description: "Search enabled public portals, deduplicate results, and persist seen-job state.",
-    parameters: Type.Object({ query: Type.String(), location: Type.Optional(Type.String()), portals: portalNames }),
-    async execute(_toolCallId, params: { query: string; location?: string; portals?: string[] }) {
+    parameters: Type.Object({ ...searchQuery.properties, portals: portalNames }),
+    async execute(_toolCallId, params: { query: string; location?: string; country?: string; timezone?: string; seniority?: string; employmentType?: string; category?: string; remoteOnly?: boolean; limit?: number; portals?: string[] }) {
       const registry = createPortalRegistry(createHttpClient());
       const adapters = (params.portals?.length ? params.portals : [...registry.keys()]).map((name) => registry.get(name as PortalName));
-      const result = await orchestrateScrape(adapters, { query: params.query, location: params.location });
+      const { portals: _portals, ...query } = params;
+      const result = await orchestrateScrape(adapters, query);
       const merged = mergeSeenJobs(result.jobs, await readSeenState(process.cwd()));
       await writeSeenState(process.cwd(), merged.state);
       return textResult({ jobs: merged.newJobs, failures: result.failures, warnings: result.warnings });
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_import_postings",
+    label: "Import Job Postings",
+    description: "Import pasted text, .txt/.md files, or public job URLs. URLs are fetched once; partial extraction and failures are reported without bypassing access controls.",
+    parameters: Type.Object({ urls: Type.Optional(Type.Array(Type.String())), text: Type.Optional(Type.String()), files: Type.Optional(Type.Array(Type.String())) }),
+    async execute(_toolCallId, params: { urls?: string[]; text?: string; files?: string[] }) {
+      return textResult(await importPostings(params));
     },
   });
 
@@ -128,7 +146,7 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     parameters: Type.Object({ jobs: Type.Array(rankInput), date: Type.Optional(Type.String()) }),
     async execute(_toolCallId, params: { jobs: Array<Record<string, unknown>>; date?: string }) {
       const inputs = params.jobs.map((item) => ({
-        job: { source: item.source, id: item.id, title: item.title, company: item.company, location: item.location, datePosted: item.datePosted, url: item.url, description: item.description, employmentType: item.employmentType },
+        job: { source: item.source, id: item.id, title: item.title, company: item.company, location: item.location, datePosted: item.datePosted, url: item.url, description: item.description, employmentType: item.employmentType, remoteType: item.remoteType, countryRestrictions: item.countryRestrictions, timezoneRestrictions: item.timezoneRestrictions, salary: item.salary, applicationUrl: item.applicationUrl, tags: item.tags, attributionUrl: item.attributionUrl },
         scores: item.scores,
         workRights: item.workRights,
         location: item.locationGate,
