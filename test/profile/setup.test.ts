@@ -8,6 +8,8 @@ import {
   buildSetupPlan,
   readProfileSection,
   setupFromCv,
+  setupFromDocuments,
+  setupFromInterview,
 } from "../../src/profile.js";
 
 test("CV, interview, and document setup converge on approved canonical facts", async () => {
@@ -21,6 +23,14 @@ test("CV, interview, and document setup converge on approved canonical facts", a
   const section = await readProfileSection(cwd, "candidate");
   assert.equal(section.fields.name.value, "Ada Lovelace");
   assert.equal(section.fields.name.provenance[0].source, "resume.pdf");
+});
+
+test("document and interview setup paths use the same fact model", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-job-search-"));
+  const documentPlan = await setupFromDocuments(cwd, { education: "Oxford" }, "diploma.txt");
+  assert.equal(documentPlan.additions[0].incoming.provenance[0].kind, "document");
+  const interviewPlan = await setupFromInterview(cwd, { goals: ["research"] });
+  assert.equal(interviewPlan.additions[0].incoming.provenance[0].kind, "interview");
 });
 
 test("conflicts are preserved until explicitly resolved", async () => {

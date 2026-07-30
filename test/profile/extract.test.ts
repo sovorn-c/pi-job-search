@@ -5,6 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { inventoryDocuments, extractDocument } from "../../src/profile.js";
 
+test("missing document roots produce an empty inventory", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-job-search-"));
+  assert.deepEqual(await inventoryDocuments(cwd), []);
+});
+
 test("inventory and text extraction stay local to the document root", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-job-search-"));
   const root = join(cwd, ".pi-job-search", "documents");
