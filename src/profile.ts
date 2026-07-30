@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { access, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { initializeWorkspace, writeJsonAtomic, WORKSPACE_DIR } from "./workspace.js";
@@ -252,6 +252,7 @@ export async function extractDocument(cwd: string, path: string): Promise<Extrac
   const target = resolve(path);
   ensureWithin(root, target);
   const extension = extname(target).toLowerCase();
+  ensureWithin(await realpath(root), await realpath(target));
   try {
     if (TEXT_EXTENSIONS.has(extension)) return { path: target, status: "extracted", text: await readFile(target, "utf8") };
     if (extension === ".pdf") {
