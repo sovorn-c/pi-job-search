@@ -19,7 +19,8 @@
     "verify:scrape": "tsx scripts/verify-scrape.mjs",
     "verify:apply": "tsx scripts/verify-apply.mjs",
     "verify:outcome-interview": "tsx scripts/verify-outcome-interview.mjs",
-    "verify:insights": "tsx scripts/verify-insights.mjs"
+    "verify:insights": "tsx scripts/verify-insights.mjs",
+    "verify:integrations": "tsx scripts/verify-integrations.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
