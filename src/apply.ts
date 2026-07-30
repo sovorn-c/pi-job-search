@@ -170,6 +170,88 @@ export interface ApplicationArchive {
   files: string[];
 }
 
+export interface ReviewerSnapshot {
+  postingText: string;
+  company: string;
+  claims: DraftClaim[];
+  evaluation: PostingEvaluation;
+}
+
+export interface ReviewerReplacement {
+  claimId: string;
+  text: string;
+  value: unknown;
+  factIds: string[];
+  rationale: string;
+}
+
+export interface ReviewerCompanyClaim {
+  text: string;
+  sources: string[];
+}
+
+export interface ReviewerReport {
+  replacements: ReviewerReplacement[];
+  companyClaims: ReviewerCompanyClaim[];
+  notes: string[];
+}
+
+export type IsolatedReviewer = (snapshot: ReviewerSnapshot) => Promise<ReviewerReport>;
+
+export async function runIsolatedReview(snapshot: ReviewerSnapshot, reviewer: IsolatedReviewer): Promise<ReviewerReport> {
+  const isolatedSnapshot = JSON.parse(JSON.stringify(snapshot)) as ReviewerSnapshot;
+  return reviewer(isolatedSnapshot);
+}
+
+export interface ReviewerAuditEntry {
+  claimId: string;
+  replacement: string;
+  rationale: string;
+}
+
+export interface ReviewerEditResult {
+  blocked: boolean;
+  claims: DraftClaim[];
+  audit: ReviewerAuditEntry[];
+  blocking: string[];
+}
+
+export function applyReviewerEdits(
+  claims: DraftClaim[],
+  report: ReviewerReport,
+  facts: ApprovedFact[],
+  postingUrl: string,
+): ReviewerEditResult {
+  const next = claims.map((claim) => ({ ...claim, factIds: [...claim.factIds] }));
+  const audit: ReviewerAuditEntry[] = [];
+  const blocking: string[] = [];
+  for (const replacement of report.replacements) {
+    const index = next.findIndex((claim) => claim.id === replacement.claimId);
+    if (index < 0) {
+      blocking.push(`unknown-claim:${replacement.claimId}`);
+      continue;
+    }
+    const candidate = { ...next[index], text: replacement.text, value: replacement.value, factIds: replacement.factIds };
+    if (groundClaims([candidate], facts).blocked) {
+      blocking.push(`ungrounded-replacement:${replacement.claimId}`);
+      continue;
+    }
+    next[index] = candidate;
+    audit.push({ claimId: replacement.claimId, replacement: replacement.text, rationale: replacement.rationale });
+  }
+  for (const companyClaim of report.companyClaims) {
+    const independent = companyClaim.sources.some((source) => {
+      try {
+        return new URL(source).href !== new URL(postingUrl).href && /^https?:$/.test(new URL(source).protocol);
+      } catch {
+        return false;
+      }
+    });
+    if (!independent) blocking.push("company-claim-unverified");
+  }
+  return { blocked: blocking.length > 0, claims: next, audit, blocking };
+}
+
 export async function createApplicationWorkspace(input: ApplicationInput): Promise<ApplicationArchive> {
   const plan = planApplication(input);
   if (plan.status !== "ready") throw new Error(plan.status === "blocked" ? `application blocked: ${plan.reason}` : "application requires PROCEED confirmation");
