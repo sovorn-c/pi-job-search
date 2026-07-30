@@ -14,10 +14,10 @@ const job = (overrides: Partial<RankInput> = {}): RankInput => ({
 });
 
 test("weighted rank arithmetic uses 30/25/15/30 dimensions", () => {
-  assert.equal(weightedScore({ technical: 90, experience: 80, behavioral: 70, career: 60 }), 74.5);
+  assert.equal(weightedScore({ technical: 90, experience: 80, behavioral: 70, career: 60 }), 75.5);
   const result = rankJobs([job()], "2026-07-30");
-  assert.equal(result.ranked[0].score, 74.5);
-  assert.equal(result.ranked[0].verdict, "Good Fit");
+  assert.equal(result.ranked[0].score, 75.5);
+  assert.equal(result.ranked[0].verdict, "Strong Fit");
 });
 
 test("work-rights and location failures veto even excellent scores", () => {
@@ -27,7 +27,7 @@ test("work-rights and location failures veto even excellent scores", () => {
     job({ job: { ...job().job, id: "3" }, location: "FLAG" }),
   ], "2026-07-30");
   assert.equal(result.ranked.length, 1);
-  assert.equal(result.ranked[0].location, "FLAG");
+  assert.equal(result.ranked[0].locationGate, "FLAG");
   assert.deepEqual(result.excluded.map((entry) => entry.reason), ["work-rights-fail", "location-fail"]);
 });
 
@@ -37,6 +37,6 @@ test("past deadlines expire and urgent deadlines win score ties", () => {
     job({ job: { ...job().job, id: "urgent" }, deadline: "2026-08-02" }),
     job({ job: { ...job().job, id: "past" }, deadline: "2026-07-29" }),
   ], "2026-07-30");
-  assert.deepEqual(result.ranked.map((entry) => entry.job.id), ["urgent", "later"]);
+  assert.deepEqual(result.ranked.map((entry) => entry.id), ["urgent", "later"]);
   assert.equal(result.excluded[0].reason, "deadline-expired");
 });
