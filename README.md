@@ -1,64 +1,129 @@
-# @sovorn/pi-job-search
+# 🧭 pi-job-search
 
-A Pi-native, local-first job-search assistant. It discovers jobs, ranks fit, drafts grounded application documents, tracks outcomes, prepares interviews, and produces offline reports.
+[![npm version](https://img.shields.io/npm/v/pi-job-search?logo=npm&logoColor=white)](https://www.npmjs.com/package/pi-job-search) [![npm downloads](https://img.shields.io/npm/dm/pi-job-search?logo=npm&logoColor=white)](https://www.npmjs.com/package/pi-job-search) [![Pi package](https://img.shields.io/badge/Pi%20package-pi.dev-7c3aed)](https://pi.dev/packages/pi-job-search) [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e.svg)](./LICENSE)
+
+**A local-first job-search workspace for [Pi](https://pi.dev).** Discover suitable roles, import job descriptions, rank fit, draft grounded applications, prepare for interviews, and track outcomes—without sending applications or email on your behalf.
+
+- **npm:** [npmjs.com/package/pi-job-search](https://www.npmjs.com/package/pi-job-search)
+- **Pi catalog:** [pi.dev/packages/pi-job-search](https://pi.dev/packages/pi-job-search)
+- **GitHub:** [github.com/sovorn-c/pi-job-search](https://github.com/sovorn-c/pi-job-search)
 
 ## Install
 
-Install the package through Pi's package manager, then use the included slash commands. The workspace is created under `.pi-job-search/` and is never part of package releases.
+Install the public package from inside Pi:
+
+```bash
+pi install npm:pi-job-search
+```
+
+Restart Pi, or run `/reload` if it is already running. Then initialize your local workspace:
 
 ```text
 /setup
-/scrape
-/rank
-/apply
 ```
 
-Run `npm run verify:package` to inspect the published resource inventory.
+The package stores candidate data, documents, search state, applications, and reports in `.pi-job-search/`. The directory is local workspace state and is added to `.gitignore` during setup.
+
+## The core workflow
+
+```text
+/setup → /scrape or /import → /rank → /apply → /outcome → /followup or /interview
+```
+
+### 1. Set up your profile
+
+`/setup` builds a versioned profile from CVs, documents, interview answers, or direct user input. Facts retain provenance and inferred claims remain distinguishable from approved facts.
+
+### 2. Discover or import jobs
+
+Automated discovery uses stable public sources:
+
+| Source | Access | Search behavior |
+| --- | --- | --- |
+| [Himalayas](https://himalayas.app) | Public JSON API | Provider-side keyword, country, timezone, seniority, and employment filters |
+| [We Work Remotely](https://weworkremotely.com) | Public RSS | Category feed plus local keyword filtering |
+| [Remote OK](https://remoteok.com) | Public JSON feed | Local filtering by title, tags, and location; attribution preserved |
+
+Use `/scrape` with keyword, country, timezone, seniority, employment type, category, remote-only, and result-limit filters. Results are normalized into one shared job format, deduplicated, and saved locally.
+
+For LinkedIn, SEEK, login-walled pages, or any blocked source, use `/import` instead:
+
+- paste the job description;
+- provide a `.txt` or `.md` file; or
+- provide a public URL for one best-effort request.
+
+URL imports parse public JSON-LD, metadata, and visible content. They report complete, partial, and failed extraction separately. They never automate login, bypass CAPTCHA, evade bot protection, or retry aggressively.
+
+### 3. Rank fit before applying
+
+`/rank` evaluates technical fit, experience, behavioral fit, and career alignment. Work-rights and location gates can veto an otherwise high score. Every recommendation includes its evidence and fit verdict.
+
+### 4. Draft, verify, and track
+
+`/apply` creates draft-only CV, cover-letter, and application-form materials grounded in approved facts. Documents are verified for page count, extractable text, required content, forbidden content, and ATS keywords.
+
+`/outcome` records application progress. `/followup` creates capped, draft-only thank-you and follow-up messages. `/interview` creates stage-specific preparation packs and a one-question-at-a-time mock interview. `/html-report` renders a self-contained offline tracker report.
 
 ## Commands
 
-- `/setup`, `/reset`: manage the local candidate profile.
-- `/scrape`, `/rank`: discover and score jobs from Himalayas, We Work Remotely, and Remote OK.
-- `/gmail-auth`: authorize optional read-only Gmail access once using a Google Desktop OAuth client.
-- `/apply`: create draft-only, grounded application documents.
-- `/import`: import pasted descriptions, `.txt`/`.md` files, or public URLs with complete/partial/failed extraction reporting.
-- `/outcome`, `/followup`, `/interview`: track outcomes and prepare responses; no messages are sent.
-- `/expand`, `/upskill`, `/html-report`: improve the profile, identify gaps, and render an offline report.
-- `/gmail-sync`: reconcile incoming application signals from Gmail after explicit approval. Gmail access is read-only; it never sends, deletes, labels, or archives mail.
-- `/add-template`, `/add-portal`: validate custom assets before activation.
+| Command | Purpose |
+| --- | --- |
+| `/setup` | Create or update the candidate profile |
+| `/reset` | Preview and reset profile or document state |
+| `/scrape` | Search the enabled public job sources |
+| `/import` | Import pasted text, `.txt`/`.md` files, or public URLs |
+| `/rank` | Score and gate job fit |
+| `/apply` | Draft and verify application materials |
+| `/outcome` | Record application outcomes |
+| `/followup` | Draft follow-up messages; never sends them |
+| `/interview` | Prepare for interviews and run mock questions |
+| `/expand` | Propose profile competency expansions with approval |
+| `/upskill` | Find hard and preferred skill gaps |
+| `/html-report` | Generate an offline application dashboard |
+| `/gmail-auth` | Authorize optional read-only Gmail access |
+| `/gmail-sync` | Propose outcome updates from Gmail messages |
+| `/add-template` | Add a compile-validated document template |
+| `/add-portal` | Investigate and scaffold a fixture-verified portal |
 
-## Gmail authorization
+## Safety and privacy
 
-Create a Google Cloud Desktop OAuth client, enable Gmail API, and configure the consent screen with the read-only scope. Then set the client ID and authorize once:
+- **No auto-submit:** applications are drafts and require user review.
+- **No email sending:** follow-ups are drafts only.
+- **Read-only Gmail:** sync can list and read messages but cannot send, delete, label, archive, or modify mail.
+- **Untrusted job text:** descriptions and application instructions are treated as data, never as Pi commands.
+- **Bounded source access:** public endpoints only, with timeouts, retries where appropriate, attribution, and isolated failures.
+- **Local-first state:** profile, documents, tracker data, Gmail state, and generated artifacts stay in the ignored `.pi-job-search/` workspace.
+
+Pi packages execute code with the permissions of the user running Pi. Review the source before installing any third-party package.
+
+## Gmail integration
+
+Gmail is optional. Create a Google Cloud Desktop OAuth client with the read-only Gmail scope, then configure:
 
 ```bash
 export GMAIL_CLIENT_ID="..."
 export GMAIL_CLIENT_SECRET="..." # optional for Desktop clients
-pi
-# run /gmail-auth
 ```
 
-The flow uses PKCE and a loopback callback. Refresh tokens are stored outside the project: macOS Keychain when available, otherwise a user-only file under `~/.config/pi-job-search/`. Each `/gmail-sync` run refreshes the short-lived access token automatically.
+Run `/gmail-auth` once. PKCE authorization uses a loopback callback, and the refresh token is stored outside the project in macOS Keychain when available, or a user-only file under `~/.config/pi-job-search/`.
 
-## Privacy and safety
-
-Profile facts, documents, tracker data, Gmail state, and generated adapters stay in the ignored local workspace. Gmail is optional. Set `GMAIL_CLIENT_ID` (and optionally `GMAIL_CLIENT_SECRET`) once, run `/gmail-auth`, and the browser PKCE flow stores a refresh token in the OS keychain when available. Existing `GMAIL_TOKEN`/`GMAIL_ACCESS_TOKEN` environment tokens remain supported. Gmail offers are recorded as `offer`, not `hired`, and ambiguous matches remain proposals.
-
-Automated discovery uses only Himalayas, We Work Remotely, and Remote OK public APIs/feeds. URL imports make one normal public request and report partial extraction or access failures; they never use login automation, CAPTCHA bypass, proxies, or fingerprint evasion. Source attribution and provider restrictions are surfaced to the user. Live smoke checks are opt-in and low-volume.
-
-Custom templates must pass a tokenized, allowlisted dummy compile before activation. Generated portal adapters require a fixture contract and explicit manual smoke evidence. No package lifecycle scripts run on install.
-
-## Attribution
-
-This is an independent clean-room implementation informed by the observable workflow concepts of the MIT-licensed `ai-job-search` project. It does not copy source code or claim source-code identity. See `NOTICE.md` and `LICENSE`.
-
-## Development
+## For contributors
 
 ```bash
+git clone https://github.com/sovorn-c/pi-job-search.git
+cd pi-job-search
 npm ci --ignore-scripts
 npm run typecheck
 npm test
 npm run verify:release
 ```
 
-Live portal verification is intentionally separate from offline CI and must be recorded with its source, timestamp, result, and no credentials.
+To test the local package without publishing:
+
+```bash
+pi -e .
+```
+
+## Attribution and license
+
+MIT licensed. This is an independent clean-room implementation informed by the observable workflow concepts and documentation of the MIT-licensed [`ai-job-search`](https://github.com/MadsLorentzen/ai-job-search) project. No source code is copied and no source-code identity is claimed. See [NOTICE.md](./NOTICE.md).

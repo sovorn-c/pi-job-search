@@ -62,7 +62,7 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     description: "Report the installed Pi job-search package foundation.",
     parameters: Type.Object({}),
     async execute() {
-      return textResult({ package: "@sovorn/pi-job-search", version: "0.1.0" });
+      return textResult({ package: "pi-job-search", version: "0.1.0" });
     },
   });
 

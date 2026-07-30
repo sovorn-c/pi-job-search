@@ -15,7 +15,7 @@ test("headless CLI resolves package resources independently of cwd", async () =>
   });
   const result = JSON.parse(stdout);
 
-  assert.equal(result.package, "@sovorn/pi-job-search");
+  assert.equal(result.package, "pi-job-search");
   assert.equal(result.commands.length, 15);
   assert.deepEqual(result.skills, [
     "job-application-assistant",

@@ -1,11 +1,34 @@
 {
-  "name": "@sovorn/pi-job-search",
+  "name": "pi-job-search",
   "version": "0.1.0",
-  "description": "Pi-native job search workflows",
+  "description": "A local-first Pi package for discovering jobs, ranking fit, drafting applications, and tracking outcomes.",
   "type": "module",
   "license": "MIT",
+  "author": "Sovorn C.",
+  "homepage": "https://pi.dev/packages/pi-job-search",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/sovorn-c/pi-job-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sovorn-c/pi-job-search/issues"
+  },
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "job-search",
+    "career",
+    "job-application"
+  ],
+  "files": [
+    "extensions",
+    "prompts",
+    "skills",
+    "src",
+    "templates",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md",
+    "package.json"
   ],
   "engines": {
     "node": ">=20"
