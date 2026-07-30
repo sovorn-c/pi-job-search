@@ -1,5 +1,5 @@
 ---
-description: Record and scaffold a public job portal adapter
-argument-hint: "<portal name>"
+description: Investigate and safely scaffold a public job portal adapter
+argument-hint: "<name> <url> [fixture]"
 ---
-Investigate the public contract and scaffold a portal adapter without bypassing access controls. Arguments: $ARGUMENTS
+Use `job_search_add_portal` with mode `list` or `add`. Record the public contract first. Auth-walled portals are refused; robots or terms restrictions produce a personal-use warning. Generated adapters remain disabled until their fixture contract and explicit low-volume manual smoke evidence pass. Never bypass access controls. Arguments: $ARGUMENTS

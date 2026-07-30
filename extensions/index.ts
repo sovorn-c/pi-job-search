@@ -12,6 +12,9 @@ import { aggregateUpskill, analyzeSingleRole, type RoleGapInput } from "../src/u
 import { generateHtmlReport } from "../src/report.js";
 import { createGmailClient } from "../src/gmail.js";
 import { syncGmail } from "../src/gmail-sync.js";
+import { addTemplate, listTemplates, selectTemplate } from "../src/templates.js";
+import { investigatePortal, listPortalInvestigations } from "../src/portal-generator.js";
+import { scaffoldPortalAdapter } from "../src/portal-scaffold.js";
 import { verifyDocument } from "../src/documents.js";
 import { rankJobs, mergeRankState, type RankInput, type RankState } from "../src/rank.js";
 import { createHttpClient, createPortalRegistry, type PortalName } from "../src/portals.js";
@@ -36,6 +39,9 @@ const interviewStage = Type.Union([Type.Literal("screening"), Type.Literal("tech
 const expansionSignal = Type.Object({ id: Type.String(), section: Type.Union([Type.Literal("candidate"), Type.Literal("behavioral"), Type.Literal("writing"), Type.Literal("search")]), key: Type.String(), value: Type.Unknown(), source: Type.String(), evidence: Type.String(), confidence: Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")]), status: Type.Union([Type.Literal("direct"), Type.Literal("inferred")]) });
 const roleGap = Type.Object({ applicationKey: Type.String(), role: Type.String(), importance: Type.Optional(Type.Number()), gaps: Type.Array(Type.Object({ text: Type.String(), priority: Type.Union([Type.Literal(1), Type.Literal(3)]) })) });
 const gmailConfirmation = Type.Optional(Type.Union([Type.Literal("APPROVE"), Type.Literal("REJECT")]));
+const generatorMode = Type.Union([Type.Literal("list"), Type.Literal("add"), Type.Literal("use")]);
+const portalMode = Type.Union([Type.Literal("list"), Type.Literal("add")]);
+const policySignal = Type.Union([Type.Literal("allowed"), Type.Literal("restricted"), Type.Literal("unknown")]);
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], details: {} };
@@ -248,6 +254,34 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     async execute(_toolCallId, params: { query?: string; company?: string; confirmation?: "APPROVE" | "REJECT" }) {
       const { client } = createGmailClient(process.env);
       return textResult(await syncGmail(process.cwd(), client, params));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_add_template",
+    label: "Manage Application Templates",
+    description: "List, add, or select document templates. Custom templates require an explicit approval and a sanitized dummy compile.",
+    parameters: Type.Object({ mode: generatorMode, name: Type.Optional(Type.String()), filePath: Type.Optional(Type.String()), content: Type.Optional(Type.String()), extension: Type.Optional(Type.String()), compileCommand: Type.Optional(Type.String()), confirmation: Type.Optional(Type.Literal("APPROVE")) }),
+    async execute(_toolCallId, params: { mode: "list" | "add" | "use"; name?: string; filePath?: string; content?: string; extension?: string; compileCommand?: string; confirmation?: "APPROVE" }) {
+      if (params.mode === "list") return textResult(await listTemplates());
+      if (!params.name) throw new Error("name is required");
+      if (params.mode === "use") return textResult(await selectTemplate(process.cwd(), params.name));
+      if (params.confirmation !== "APPROVE") return textResult({ status: "confirmation-required", name: params.name });
+      return textResult(await addTemplate(process.cwd(), { name: params.name, filePath: params.filePath, content: params.content, extension: params.extension, compileCommand: params.compileCommand }));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_add_portal",
+    label: "Investigate and Scaffold Portal",
+    description: "Record a public portal policy decision and optionally scaffold a fixture-backed adapter. Auth-walled portals are refused.",
+    parameters: Type.Object({ mode: portalMode, name: Type.Optional(Type.String()), url: Type.Optional(Type.String()), authRequired: Type.Optional(Type.Boolean()), robots: Type.Optional(policySignal), terms: Type.Optional(policySignal), fixture: Type.Optional(Type.Unknown()), fixtureVerified: Type.Optional(Type.Boolean()), manualSmokeVerified: Type.Optional(Type.Boolean()), manualEvidence: Type.Optional(Type.Unknown()) }),
+    async execute(_toolCallId, params: { mode: "list" | "add"; name?: string; url?: string; authRequired?: boolean; robots?: "allowed" | "restricted" | "unknown"; terms?: "allowed" | "restricted" | "unknown"; fixture?: { search: unknown; detail: unknown }; fixtureVerified?: boolean; manualSmokeVerified?: boolean; manualEvidence?: { source: string; result: "pass" | "fail"; timestamp?: string; notes?: string } }) {
+      if (params.mode === "list") return textResult(await listPortalInvestigations());
+      if (!params.name || !params.url) throw new Error("name and url are required");
+      const investigation = await investigatePortal(process.cwd(), { name: params.name, url: params.url, authRequired: params.authRequired ?? false, robots: params.robots ?? "unknown", terms: params.terms ?? "unknown" });
+      if (!params.fixture) return textResult(investigation);
+      return textResult({ investigation, scaffold: await scaffoldPortalAdapter(process.cwd(), { name: params.name, fixture: params.fixture, fixtureVerified: params.fixtureVerified, manualSmokeVerified: params.manualSmokeVerified, manualEvidence: params.manualEvidence }) });
     },
   });
 }
