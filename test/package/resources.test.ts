@@ -45,7 +45,7 @@ test("package contains the exact commands and workflow skills", async () => {
 });
 
 test("extension registers at least one deterministic tool", async () => {
-  const { default: register } = await import("../../extensions/index.ts");
+  const { default: register } = await import("../../extensions/index.js");
   const tools: unknown[] = [];
   register({ registerTool: (tool: unknown) => tools.push(tool) });
   assert.equal(tools.length, 1);
