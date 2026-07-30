@@ -70,10 +70,18 @@ export async function readTracker(cwd: string): Promise<TrackerRow[]> {
   const rows = parseCsv(await readFile(csvPath(cwd), "utf8"));
   if (!rows.length) return [];
   const [header, ...data] = rows;
-  return data.map((values) => Object.fromEntries(header.map((name, index) => [name, values[index] ?? ""])) as TrackerRow);
+  return data.map((values) => {
+    const row = Object.fromEntries(header.map((name, index) => [name, values[index] ?? ""])) as TrackerRow;
+    if (!TRANSITIONS[row.status]) throw new Error(`invalid tracker status: ${row.status}`);
+    return row;
+  });
 }
 
 export async function writeTracker(cwd: string, rows: TrackerRow[]): Promise<void> {
+  for (const row of rows) {
+    if (row.applicationKey !== stableApplicationKey(row.company, row.role)) throw new Error("application key does not match company and role");
+    if (!TRANSITIONS[row.status]) throw new Error(`invalid tracker status: ${row.status}`);
+  }
   const columns = COLUMNS.filter((column) => column === "applicationKey" || column === "company" || column === "role" || column === "url" || column === "status" || rows.some((row) => row[column] !== undefined));
   const content = `${columns.join(",")}\n${rows.map((row) => columns.map((column) => escapeCsv(row[column])).join(",")).join("\n")}${rows.length ? "\n" : ""}`;
   const path = csvPath(cwd);
@@ -83,6 +91,7 @@ export async function writeTracker(cwd: string, rows: TrackerRow[]): Promise<voi
 }
 
 export function upsertTrackerRow(rows: TrackerRow[], incoming: TrackerRow): TrackerRow[] {
+  if (incoming.applicationKey !== stableApplicationKey(incoming.company, incoming.role)) throw new Error("application key does not match company and role");
   const index = rows.findIndex((row) => row.applicationKey === incoming.applicationKey);
   if (index < 0) return [...rows, { ...incoming }];
   transitionStatus(rows[index].status, incoming.status);
