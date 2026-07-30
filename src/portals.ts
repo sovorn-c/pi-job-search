@@ -1,9 +1,5 @@
-import { execFile as execFileCallback } from "node:child_process";
 import { load } from "cheerio";
 import { XMLParser } from "fast-xml-parser";
-import { promisify } from "node:util";
-
-const execFile = promisify(execFileCallback);
 
 export type PortalName = "linkedin" | "freehire" | "jobindex" | "jobnet" | "jobbank" | "jobdanmark";
 export type PortalErrorCode = "http" | "timeout" | "parse" | "rate_limit" | "source" | "network";
@@ -92,6 +88,7 @@ export async function requestWithRetry(
 ): Promise<HttpResponse> {
   const options = { ...DEFAULT_RETRY, ...policy };
   for (let attempt = 0; attempt <= options.maxRetries; attempt += 1) {
+    if (parentSignal?.aborted) throw new PortalError("portal request cancelled", "network");
     const controller = new AbortController();
     const abort = () => controller.abort();
     parentSignal?.addEventListener("abort", abort, { once: true });
