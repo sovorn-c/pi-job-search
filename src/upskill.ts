@@ -167,6 +167,7 @@ export function serializeUpskillReport(report: AggregateReport): string {
 }
 
 export async function writeUpskillReport(cwd: string, report: AggregateReport, date = report.generatedAt): Promise<string> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("invalid upskill report date");
   const directory = resolveStatePath(cwd, "upskill");
   await mkdir(directory, { recursive: true });
   const path = join(directory, `report-${date}.md`);
