@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
+import { access, lstat, mkdir, readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { initializeWorkspace, writeJsonAtomic, WORKSPACE_DIR } from "./workspace.js";
@@ -312,7 +312,16 @@ function resetTarget(cwd: string, mode: ResetMode): string {
   return resolve(cwd, WORKSPACE_DIR);
 }
 
+async function assertSafeStateRoot(cwd: string): Promise<void> {
+  try {
+    if ((await lstat(resolve(cwd, WORKSPACE_DIR))).isSymbolicLink()) throw new Error("workspace state root must not be a symlink");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
 export async function previewReset(cwd: string, mode: ResetMode): Promise<{ mode: ResetMode; paths: string[] }> {
+  await assertSafeStateRoot(cwd);
   const target = resetTarget(cwd, mode);
   return { mode, paths: await listPaths(target) };
 }

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { extractDocument, resolveStatePath } from "../../src/profile.js";
+import { executeReset, extractDocument, resolveStatePath } from "../../src/profile.js";
 
 test("state paths cannot escape the workspace root", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-job-search-"));
@@ -21,4 +21,11 @@ test("document extraction rejects symlinks that resolve outside local state", as
   const link = join(root, "linked.txt");
   await symlink(outside, link);
   await assert.rejects(() => extractDocument(cwd, link), /outside workspace/);
+});
+
+test("reset rejects a symlinked state root", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-job-search-"));
+  const outside = await mkdtemp(join(tmpdir(), "pi-job-search-outside-"));
+  await symlink(outside, join(cwd, ".pi-job-search"));
+  await assert.rejects(() => executeReset(cwd, "all", "RESET"), /must not be a symlink/);
 });
