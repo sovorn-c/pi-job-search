@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "cli": "tsx src/cli.ts",
     "verify:package": "tsx scripts/verify-package.mjs",
-    "verify:setup": "tsx scripts/verify-setup.mjs"
+    "verify:setup": "tsx scripts/verify-setup.mjs",
+    "verify:scrape": "tsx scripts/verify-scrape.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
