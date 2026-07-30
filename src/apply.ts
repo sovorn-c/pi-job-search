@@ -1,3 +1,7 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { initializeWorkspace, writeJsonAtomic, WORKSPACE_DIR } from "./workspace.js";
+
 export type RequirementKind = "required" | "preferred";
 export type RequirementStatus = "met" | "gap";
 
@@ -131,4 +135,59 @@ export function groundClaims(claims: DraftClaim[], facts: ApprovedFact[]): Groun
     }
   }
   return { blocked: blocking.length > 0, claims: grounded, blocking };
+}
+
+export interface ApplicationInput {
+  cwd: string;
+  company: string;
+  title: string;
+  url: string;
+  postingText: string;
+  evaluation: PostingEvaluation;
+  claims: DraftClaim[];
+  facts: ApprovedFact[];
+  confirmation?: "PROCEED";
+}
+
+export type ApplicationPlan =
+  | { status: "blocked"; reason: string }
+  | { status: "confirmation-required" }
+  | { status: "ready" };
+
+export function planApplication(input: ApplicationInput): ApplicationPlan {
+  if (!input.evaluation.eligible) return { status: "blocked", reason: input.evaluation.blocking[0] ?? "ineligible" };
+  if (input.confirmation !== "PROCEED") return { status: "confirmation-required" };
+  return { status: "ready" };
+}
+
+function archiveSlug(value: string): string {
+  return value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 120) || "application";
+}
+
+export interface ApplicationArchive {
+  directory: string;
+  draftOnly: true;
+  files: string[];
+}
+
+export async function createApplicationWorkspace(input: ApplicationInput): Promise<ApplicationArchive> {
+  const plan = planApplication(input);
+  if (plan.status !== "ready") throw new Error(plan.status === "blocked" ? `application blocked: ${plan.reason}` : "application requires PROCEED confirmation");
+  const grounding = groundClaims(input.claims, input.facts);
+  if (grounding.blocked) throw new Error("application claims contain blocking grounding issues");
+  await initializeWorkspace(input.cwd);
+  const directory = join(input.cwd, WORKSPACE_DIR, "applications", archiveSlug(`${input.company}_${input.title}`));
+  await mkdir(directory, { recursive: true });
+  const postingPath = join(directory, "job-posting.md");
+  const posting = `# ${input.title} at ${input.company}\n\nURL: ${input.url}\n\n${normalizePostingText(input.postingText)}\n`;
+  await writeFile(postingPath, posting, { encoding: "utf8", flag: "wx" }).catch(async (error: NodeJS.ErrnoException) => {
+    if (error.code !== "EEXIST") throw error;
+    const existing = await readFile(postingPath, "utf8");
+    if (!existing) throw new Error("immutable posting capture is empty");
+  });
+  await writeJsonAtomic(join(directory, "evaluation.json"), input.evaluation);
+  const claimLines = grounding.claims.map((claim) => `- ${claim.text}`).join("\n");
+  await writeFile(join(directory, "cv-draft.md"), `# CV draft\n\n${claimLines}\n`, "utf8");
+  await writeFile(join(directory, "cover-letter-draft.md"), `# Cover letter draft\n\n${claimLines}\n`, "utf8");
+  return { directory, draftOnly: true, files: ["job-posting.md", "evaluation.json", "cv-draft.md", "cover-letter-draft.md"] };
 }
