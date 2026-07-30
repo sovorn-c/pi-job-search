@@ -1,6 +1,15 @@
 test/
 specs/
 scripts/
+.pi/
+.pi-job-search/
+.bigpowers/
+coverage/
+allure-results/
+allure-report/
+node_modules/
 .gitignore
 .git/
-tsconfig.json
+*.tsbuildinfo
+.env
+.env.*
