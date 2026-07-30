@@ -20,7 +20,11 @@
     "verify:apply": "tsx scripts/verify-apply.mjs",
     "verify:outcome-interview": "tsx scripts/verify-outcome-interview.mjs",
     "verify:insights": "tsx scripts/verify-insights.mjs",
-    "verify:integrations": "tsx scripts/verify-integrations.mjs"
+    "verify:integrations": "tsx scripts/verify-integrations.mjs",
+    "verify:generators": "tsx scripts/verify-generators.mjs",
+    "verify:security": "node scripts/verify-security.mjs",
+    "verify:ci": "node scripts/verify-ci.mjs",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

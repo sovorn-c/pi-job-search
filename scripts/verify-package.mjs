@@ -10,7 +10,7 @@ const root = new URL("..", import.meta.url);
 const rootPath = fileURLToPath(root);
 const expectedCommands = [
   "setup", "scrape", "rank", "apply", "interview", "outcome", "expand",
-  "upskill", "gmail-sync", "notion-sync", "html-report", "add-template",
+  "upskill", "gmail-sync", "html-report", "add-template",
   "add-portal", "reset",
 ];
 
