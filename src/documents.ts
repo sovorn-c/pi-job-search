@@ -55,6 +55,7 @@ export async function compileLatex(texPath: string, options: CompileOptions): Pr
   const engine = options.engine ?? "pdflatex";
   if (!LATEX_ENGINES.has(engine)) throw new Error("unsupported LaTeX engine");
   insideState(options.cwd, texPath);
+  if (extname(texPath).toLowerCase() !== ".tex") throw new Error("LaTeX source must be a .tex file");
   if (options.source !== undefined) validateTexSource(options.source);
   else {
     try {
@@ -64,7 +65,7 @@ export async function compileLatex(texPath: string, options: CompileOptions): Pr
     }
   }
   const outputDirectory = dirname(resolve(texPath));
-  const args = ["-interaction=nonstopmode", "-halt-on-error", "-output-directory", outputDirectory, basename(texPath)];
+  const args = ["-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", "-output-directory", outputDirectory, basename(texPath)];
   const result = await (options.runner ?? defaultRunner)(engine, args, { cwd: outputDirectory, timeout: options.timeoutMs ?? 30_000 });
   return { command: engine, args, pdfPath: join(outputDirectory, `${basename(texPath, extname(texPath))}.pdf`), stdout: result.stdout, stderr: result.stderr };
 }
