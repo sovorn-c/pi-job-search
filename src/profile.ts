@@ -11,7 +11,7 @@ const SECTION_NAMES = ["candidate", "behavioral", "writing", "search"] as const;
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".json", ".csv", ".tex"]);
 
 export type SectionName = (typeof SECTION_NAMES)[number];
-export type ProvenanceKind = "document" | "cv" | "interview" | "user";
+export type ProvenanceKind = "document" | "cv" | "interview" | "research" | "user";
 export type FactStatus = "confirmed" | "inferred";
 
 export interface Provenance {

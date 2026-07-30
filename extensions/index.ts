@@ -7,6 +7,9 @@ import { createApplicationWorkspace, evaluatePosting, extractRequirements, type 
 import { recordOutcome } from "../src/outcome.js";
 import { draftFollowup } from "../src/followup.js";
 import { buildInterviewPack, saveInterviewPack, type InterviewStage } from "../src/interview.js";
+import { applyExpansion, proposeExpansion, type ExpansionSignal } from "../src/expand.js";
+import { aggregateUpskill, analyzeSingleRole, type RoleGapInput } from "../src/upskill.js";
+import { generateHtmlReport } from "../src/report.js";
 import { verifyDocument } from "../src/documents.js";
 import { rankJobs, mergeRankState, type RankInput, type RankState } from "../src/rank.js";
 import { createHttpClient, createPortalRegistry, type PortalName } from "../src/portals.js";
@@ -28,6 +31,8 @@ const claimInput = Type.Object({ id: Type.String(), key: Type.String(), value: T
 const factInput = Type.Object({ id: Type.String(), key: Type.String(), value: Type.Unknown(), source: Type.Union([Type.Literal("approved-profile"), Type.Literal("base-cv"), Type.Literal("approved-workspace")]), provenance: Type.String() });
 const outcomeStatus = Type.Union([Type.Literal("acknowledged"), Type.Literal("interview"), Type.Literal("offer"), Type.Literal("hired"), Type.Literal("rejected"), Type.Literal("no-response"), Type.Literal("follow-up"), Type.Literal("offer-declined"), Type.Literal("withdrawn")]);
 const interviewStage = Type.Union([Type.Literal("screening"), Type.Literal("technical"), Type.Literal("behavioral"), Type.Literal("onsite"), Type.Literal("final")]);
+const expansionSignal = Type.Object({ id: Type.String(), section: Type.Union([Type.Literal("candidate"), Type.Literal("behavioral"), Type.Literal("writing"), Type.Literal("search")]), key: Type.String(), value: Type.Unknown(), source: Type.String(), evidence: Type.String(), confidence: Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")]), status: Type.Union([Type.Literal("direct"), Type.Literal("inferred")]) });
+const roleGap = Type.Object({ applicationKey: Type.String(), role: Type.String(), importance: Type.Optional(Type.Number()), gaps: Type.Array(Type.Object({ text: Type.String(), priority: Type.Union([Type.Literal(1), Type.Literal(3)]) })) });
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], details: {} };
@@ -192,6 +197,43 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     async execute(_toolCallId, params: { applicationKey: string; company: string; role: string; stage: InterviewStage; postingText: string; submittedMaterials: string[]; approvedFacts: string[]; feedback: string[]; research?: Array<{ fact: string; source: string; date: string }> }) {
       const pack = buildInterviewPack(params);
       return textResult({ pack, path: await saveInterviewPack(process.cwd(), pack) });
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_expand",
+    label: "Expand Candidate Profile",
+    description: "Preview sourced direct and inferred profile signals, then apply only explicitly approved additive changes.",
+    parameters: Type.Object({ signals: Type.Array(expansionSignal), approve: Type.Optional(Type.Array(Type.String())) }),
+    async execute(_toolCallId, params: { signals: ExpansionSignal[]; approve?: string[] }) {
+      const proposals = await proposeExpansion(process.cwd(), params.signals);
+      if (!params.approve) return textResult({ proposals, confirmation: "approve proposal ids explicitly" });
+      return textResult(await applyExpansion(process.cwd(), proposals, params.approve));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_upskill",
+    label: "Analyze Skill Gaps",
+    description: "Analyze one posting or aggregate supplied active-role gaps with deterministic priorities and no fabricated resources.",
+    parameters: Type.Object({ mode: Type.Union([Type.Literal("single"), Type.Literal("aggregate")]), postingText: Type.Optional(Type.String()), source: Type.Optional(Type.String()), approvedSkills: Type.Optional(Type.Array(Type.String())), roles: Type.Optional(Type.Array(roleGap)), generatedAt: Type.Optional(Type.String()) }),
+    async execute(_toolCallId, params: { mode: "single" | "aggregate"; postingText?: string; source?: string; approvedSkills?: string[]; roles?: RoleGapInput[]; generatedAt?: string }) {
+      if (params.mode === "single") {
+        if (!params.postingText) throw new Error("postingText is required for single-role analysis");
+        return textResult(analyzeSingleRole({ postingText: params.postingText, source: params.source, approvedSkills: params.approvedSkills ?? [] }));
+      }
+      if (!params.roles) throw new Error("roles are required for aggregate analysis");
+      return textResult(aggregateUpskill(params.roles, undefined, params.generatedAt));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_html_report",
+    label: "Generate Offline HTML Report",
+    description: "Render the local tracker as a self-contained escaped dashboard with inline charts and combined filters.",
+    parameters: Type.Object({ outputPath: Type.Optional(Type.String()) }),
+    async execute(_toolCallId, params: { outputPath?: string }) {
+      return textResult(await generateHtmlReport(process.cwd(), params.outputPath));
     },
   });
 }
