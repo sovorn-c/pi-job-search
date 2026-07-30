@@ -19,15 +19,29 @@ Run `npm run verify:package` to inspect the published resource inventory.
 
 - `/setup`, `/reset`: manage the local candidate profile.
 - `/scrape`, `/rank`: collect and score public jobs.
+- `/gmail-auth`: authorize optional read-only Gmail access once using a Google Desktop OAuth client.
 - `/apply`: create draft-only, grounded application documents.
 - `/outcome`, `/followup`, `/interview`: track outcomes and prepare responses; no messages are sent.
 - `/expand`, `/upskill`, `/html-report`: improve the profile, identify gaps, and render an offline report.
 - `/gmail-sync`: reconcile incoming application signals from Gmail after explicit approval. Gmail access is read-only; it never sends, deletes, labels, or archives mail.
 - `/add-template`, `/add-portal`: validate custom assets before activation.
 
+## Gmail authorization
+
+Create a Google Cloud Desktop OAuth client, enable Gmail API, and configure the consent screen with the read-only scope. Then set the client ID and authorize once:
+
+```bash
+export GMAIL_CLIENT_ID="..."
+export GMAIL_CLIENT_SECRET="..." # optional for Desktop clients
+pi
+# run /gmail-auth
+```
+
+The flow uses PKCE and a loopback callback. Refresh tokens are stored outside the project: macOS Keychain when available, otherwise a user-only file under `~/.config/pi-job-search/`. Each `/gmail-sync` run refreshes the short-lived access token automatically.
+
 ## Privacy and safety
 
-Profile facts, documents, tracker data, Gmail state, and generated adapters stay in the ignored local workspace. Gmail uses an externally provisioned `GMAIL_TOKEN` or `GMAIL_ACCESS_TOKEN`; OAuth browser and refresh-token acquisition are not embedded. Gmail offers are recorded as `offer`, not `hired`, and ambiguous matches remain proposals.
+Profile facts, documents, tracker data, Gmail state, and generated adapters stay in the ignored local workspace. Gmail is optional. Set `GMAIL_CLIENT_ID` (and optionally `GMAIL_CLIENT_SECRET`) once, run `/gmail-auth`, and the browser PKCE flow stores a refresh token in the OS keychain when available. Existing `GMAIL_TOKEN`/`GMAIL_ACCESS_TOKEN` environment tokens remain supported. Gmail offers are recorded as `offer`, not `hired`, and ambiguous matches remain proposals.
 
 Portal adapters use public endpoints only. Auth-walled portals are refused. Robots and terms restrictions are surfaced as personal-use warnings. Live smoke checks are opt-in, low-volume, and never bypass controls.
 

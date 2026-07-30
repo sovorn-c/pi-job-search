@@ -12,6 +12,7 @@ import { aggregateUpskill, analyzeSingleRole, type RoleGapInput } from "../src/u
 import { generateHtmlReport } from "../src/report.js";
 import { createGmailClient } from "../src/gmail.js";
 import { syncGmail } from "../src/gmail-sync.js";
+import { authorizeGmail, createAuthorizedGmailClient } from "../src/gmail-oauth.js";
 import { addTemplate, listTemplates, selectTemplate } from "../src/templates.js";
 import { investigatePortal, listPortalInvestigations } from "../src/portal-generator.js";
 import { scaffoldPortalAdapter } from "../src/portal-scaffold.js";
@@ -252,8 +253,19 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     description: "Read Gmail messages, propose application status signals with evidence, and apply only after explicit batch approval. Never modifies Gmail.",
     parameters: Type.Object({ query: Type.Optional(Type.String()), company: Type.Optional(Type.String()), confirmation: gmailConfirmation }),
     async execute(_toolCallId, params: { query?: string; company?: string; confirmation?: "APPROVE" | "REJECT" }) {
-      const { client } = createGmailClient(process.env);
+      const { client } = await createAuthorizedGmailClient(process.env);
       return textResult(await syncGmail(process.cwd(), client, params));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_gmail_auth",
+    label: "Authorize Gmail",
+    description: "Open Google's read-only Gmail authorization flow and store the refresh token outside the project workspace.",
+    parameters: Type.Object({}),
+    async execute() {
+      const result = await authorizeGmail({ clientId: process.env.GMAIL_CLIENT_ID ?? "", clientSecret: process.env.GMAIL_CLIENT_SECRET });
+      return textResult({ authorized: true, expiresIn: result.expiresIn, storedRefreshToken: result.storedRefreshToken });
     },
   });
 
