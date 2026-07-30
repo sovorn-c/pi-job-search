@@ -4,6 +4,9 @@ import { join } from "node:path";
 import { Type } from "typebox";
 import { checkProfileConsistency, executeReset, previewReset, type ResetMode } from "../src/profile.js";
 import { createApplicationWorkspace, evaluatePosting, extractRequirements, type ApprovedFact, type DraftClaim } from "../src/apply.js";
+import { recordOutcome } from "../src/outcome.js";
+import { draftFollowup } from "../src/followup.js";
+import { buildInterviewPack, saveInterviewPack, type InterviewStage } from "../src/interview.js";
 import { verifyDocument } from "../src/documents.js";
 import { rankJobs, mergeRankState, type RankInput, type RankState } from "../src/rank.js";
 import { createHttpClient, createPortalRegistry, type PortalName } from "../src/portals.js";
@@ -23,6 +26,8 @@ const rankInput = Type.Object({
 });
 const claimInput = Type.Object({ id: Type.String(), key: Type.String(), value: Type.Unknown(), text: Type.String(), factIds: Type.Array(Type.String()) });
 const factInput = Type.Object({ id: Type.String(), key: Type.String(), value: Type.Unknown(), source: Type.Union([Type.Literal("approved-profile"), Type.Literal("base-cv"), Type.Literal("approved-workspace")]), provenance: Type.String() });
+const outcomeStatus = Type.Union([Type.Literal("acknowledged"), Type.Literal("interview"), Type.Literal("offer"), Type.Literal("hired"), Type.Literal("rejected"), Type.Literal("no-response"), Type.Literal("follow-up"), Type.Literal("offer-declined"), Type.Literal("withdrawn")]);
+const interviewStage = Type.Union([Type.Literal("screening"), Type.Literal("technical"), Type.Literal("behavioral"), Type.Literal("onsite"), Type.Literal("final")]);
 
 function textResult(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], details: {} };
@@ -156,6 +161,37 @@ export default function register(pi: Pick<ExtensionAPI, "registerTool">) {
     parameters: Type.Object({ pdfPath: Type.String(), expectedPages: Type.Number(), requiredText: Type.Array(Type.String()), forbiddenText: Type.Array(Type.String()), keywords: Type.Array(Type.String()) }),
     async execute(_toolCallId, params: { pdfPath: string; expectedPages: number; requiredText: string[]; forbiddenText: string[]; keywords: string[] }) {
       return textResult(await verifyDocument({ ...params, cwd: process.cwd() }));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_outcome",
+    label: "Record Application Outcome",
+    description: "Append an explicit outcome event and update the local tracker without sending or inferring a decision.",
+    parameters: Type.Object({ applicationKey: Type.String(), date: Type.String(), stage: Type.String(), status: outcomeStatus, decision: Type.String(), evidence: Type.String(), notes: Type.String() }),
+    async execute(_toolCallId, params: { applicationKey: string; date: string; stage: string; status: "acknowledged" | "interview" | "offer" | "hired" | "rejected" | "no-response" | "follow-up" | "offer-declined" | "withdrawn"; decision: string; evidence: string; notes: string }) {
+      return textResult(await recordOutcome(process.cwd(), params));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_followup",
+    label: "Draft Application Follow-up",
+    description: "Create a bounded thank-you or follow-up draft from approved facts; never sends it and caps messages at two.",
+    parameters: Type.Object({ applicationKey: Type.String(), company: Type.String(), role: Type.String(), date: Type.String(), kind: Type.Union([Type.Literal("thank-you"), Type.Literal("follow-up")]), facts: Type.Array(Type.String()), requestedClaims: Type.Array(Type.String()), existingCount: Type.Number() }),
+    async execute(_toolCallId, params: { applicationKey: string; company: string; role: string; date: string; kind: "thank-you" | "follow-up"; facts: string[]; requestedClaims: string[]; existingCount: number }) {
+      return textResult(await draftFollowup({ cwd: process.cwd(), ...params }));
+    },
+  });
+
+  pi.registerTool({
+    name: "job_search_interview",
+    label: "Prepare Interview Pack",
+    description: "Build a stage-specific, archive/profile-grounded interview pack and mock protocol without external scheduling or contact scraping.",
+    parameters: Type.Object({ applicationKey: Type.String(), company: Type.String(), role: Type.String(), stage: interviewStage, postingText: Type.String(), submittedMaterials: Type.Array(Type.String()), approvedFacts: Type.Array(Type.String()), feedback: Type.Array(Type.String()), research: Type.Optional(Type.Array(Type.Object({ fact: Type.String(), source: Type.String(), date: Type.String() }))) }),
+    async execute(_toolCallId, params: { applicationKey: string; company: string; role: string; stage: InterviewStage; postingText: string; submittedMaterials: string[]; approvedFacts: string[]; feedback: string[]; research?: Array<{ fact: string; source: string; date: string }> }) {
+      const pack = buildInterviewPack(params);
+      return textResult({ pack, path: await saveInterviewPack(process.cwd(), pack) });
     },
   });
 }

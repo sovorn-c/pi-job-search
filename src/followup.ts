@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { applicationArchivePath } from "./archive.js";
 
@@ -23,10 +23,13 @@ export interface FollowupDraft {
 }
 
 export async function draftFollowup(input: FollowupInput): Promise<FollowupDraft> {
-  if (input.existingCount >= 2) throw new Error("two follow-ups already exist");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error("invalid follow-up date");
+  const archive = applicationArchivePath(input.cwd, input.applicationKey);
+  let existingFiles = 0;
+  try { existingFiles = (await readdir(archive)).filter((name) => /^followup-\d{4}-\d{2}-\d{2}\.md$/.test(name)).length; } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  if (Math.max(input.existingCount, existingFiles) >= 2) throw new Error("two follow-ups already exist");
   const facts = new Set(input.facts.map((fact) => fact.toLocaleLowerCase()));
   for (const claim of input.requestedClaims) if (!facts.has(claim.toLocaleLowerCase())) throw new Error(`unsupported claim: ${claim}`);
-  const archive = applicationArchivePath(input.cwd, input.applicationKey);
   await mkdir(archive, { recursive: true });
   const kindTitle = input.kind === "thank-you" ? "Thank you" : "Follow-up";
   const factText = input.requestedClaims.length ? `\n\nRelevant approved facts:\n${input.requestedClaims.map((claim) => `- ${claim}`).join("\n")}` : "";

@@ -1,4 +1,7 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { extractRequirements } from "./apply.js";
+import { applicationArchivePath } from "./archive.js";
 
 export type InterviewStage = "screening" | "technical" | "behavioral" | "onsite" | "final";
 
@@ -85,6 +88,16 @@ export interface MockSession {
   index: number;
   transcript: MockTranscriptEntry[];
   currentQuestion: string | null;
+}
+
+export async function saveInterviewPack(cwd: string, pack: InterviewPack): Promise<string> {
+  const archive = applicationArchivePath(cwd, pack.applicationKey);
+  await mkdir(archive, { recursive: true });
+  const path = join(archive, `interview-prep-${pack.stage}.md`);
+  const questions = pack.questions.map((question) => `- ${question.text} (${question.source})`).join("\n");
+  const mappings = pack.starMappings.map((mapping) => `- ${mapping.fact}: ${mapping.situationPrompt}`).join("\n");
+  await writeFile(path, `# Interview preparation: ${pack.role} at ${pack.company}\n\nStage: ${pack.stage}\nResearch: ${pack.researchStatus}\n\n## Questions\n${questions}\n\n## STAR evidence prompts\n${mappings}\n`, { encoding: "utf8", flag: "w" });
+  return path;
 }
 
 export function startMockInterview(pack: InterviewPack): MockSession {
