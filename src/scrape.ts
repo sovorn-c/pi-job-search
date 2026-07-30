@@ -66,13 +66,23 @@ function normalized(value: string | null | undefined): string {
 function identityValue(job: NormalizedJob): string {
   const title = normalized(job.title);
   const company = normalized(job.company);
-  const location = normalized(job.location);
-  if (title || company) return `${title}|${company}|${location}`;
+  if (title || company) return `${title}|${company}`;
   return normalized(job.url);
 }
 
 export function stableJobId(job: NormalizedJob): string {
   return createHash("sha256").update(identityValue(job)).digest("hex").slice(0, 24);
+}
+
+export function prefilterDetailCandidates(jobs: NormalizedJob[], query: SearchQuery): NormalizedJob[] {
+  const terms = normalized(query.query).split(" ").filter(Boolean);
+  if (!terms.length) return jobs.slice(0, query.limit ?? jobs.length);
+  return jobs
+    .map((job) => ({ job, score: terms.filter((term) => normalized(`${job.title} ${job.company} ${job.description}`).includes(term)).length }))
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, query.limit ?? jobs.length)
+    .map(({ job }) => job);
 }
 
 export interface SeenJob {
